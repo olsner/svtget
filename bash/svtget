@@ -128,6 +128,8 @@ if [[ ! "$pageUrl" =~ http://svtplay.se ]]; then
 	exit 1
 fi
 
+pageUrl=`echo $pageUrl | sed 's/^\([^?]*\).*/\1/'` 
+
 HTML=`curl -s "$pageUrl"`
 swfUrl="http://svtplay.se$(echo $HTML | $SED 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
 tcUrls=$(get_tcUrls "$HTML" "$BITRATE")
