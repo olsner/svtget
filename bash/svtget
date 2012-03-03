@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SVTGet v0.1.1
+# SVTGet v0.1.1 (fork by DomeDan 2012-03-03)
 # Updates can be found at http://svtget.se/
 # Support the project with Flattr: https://flattr.com/thing/300374/SVT-Get-a-local-cache-tool-for-SVT-Play
 #
@@ -57,6 +57,20 @@ function get_tcUrls {
 	echo $html | sed "s/\(rtmp[e]\?:[^|&]*\),bitrate:\($bitrate\)/\\n\2|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq 
 }
 
+function get_tcUrls_oa {
+	local html=$1
+	echo $html | sed "s/\(rtmp[e]\?:[^|&]*\)&amp;/\\n320|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq 
+}
+
+function get_sub {
+	local html=$1
+	echo -ne "\nwant subtitle? [y/n] "
+	read ask_sub
+	if [ -n "$ask_sub" ] && [ "y" == "$ask_sub" ]; then
+		subUrl=`echo $html | sed "s/subtitle\=\(http:[^|&]*\)\&amp/\\n\-\-sub\-file \1\\n/g"| grep "\-\-sub\-file " | uniq` 
+	fi
+}
+
 function pick_tcUrl {
 	echo "#  Bitrate	Stream name" >&2
 	let n=1
@@ -109,9 +123,13 @@ HTML=`curl -s "$pageUrl"`
 swfUrl="http://svtplay.se$(echo $HTML | sed 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
 tcUrls=$(get_tcUrls "$HTML" "$BITRATE")
 if [ -z "$tcUrls" ]; then
-	echo "ERROR: No rtmp streams found. No clip in that quality?
+tcUrls=$(get_tcUrls_oa "$HTML" )
+	get_tcUrls_oa "$HTML"
+	if [ -z "$tcUrls" ]; then
+		echo "ERROR: No rtmp streams found. No clip in that quality?
 Please visit http://svtget.se/ for updates and information. If the website's down, use a search engine to find copies." >&2
-	exit 1
+		exit 1
+	fi
 fi
 
 pick_tcUrl $tcUrls
@@ -125,6 +143,20 @@ prefix="$(basename $(dirname $pageUrl))"
 if echo "$prefix" | grep -qE '[^0-9]+' ; then
   filename="${prefix}_${filename}"
 fi
-echo Running RTMPDump for "$tcUrl" and saving to "$filename"
 
-rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
+get_sub "$HTML"
+
+echo -ne "\nDo you want to view i vlc or save to file? [v/f] "
+read ask_vlc
+if [ -n "$ask_vlc" ] && [ "v" == "$ask_vlc" ]; then
+	rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl
+elif [ -n "$ask_vlc" ] && [ "f" == "$ask_vlc" ]; then
+	echo Running RTMPDump for "$tcUrl" and saving to "$filename"
+	#rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
+	if [ -n "$subUrl" ]; then
+		subUrl=`echo "$subUrl" | sed 's/\-\-sub\-file //g'`
+		sub_filename="$(basename $pageUrl).srt"
+		echo " and subtitle to: "$sub_filename
+		wget $subUrl -O $sub_filename
+	fi
+fi
