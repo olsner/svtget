@@ -127,7 +127,7 @@ tcUrls=$(get_tcUrls_oa "$HTML" )
 	get_tcUrls_oa "$HTML"
 	if [ -z "$tcUrls" ]; then
 		echo "ERROR: No rtmp streams found. No clip in that quality?
-Please visit http://svtget.se/ for updates and information. If the website's down, use a search engine to find copies." >&2
+Please visit http://svtget.se/ for updates and information. If the website is down, use a search engine to find copies." >&2
 		exit 1
 	fi
 fi
