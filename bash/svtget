@@ -93,7 +93,7 @@ function askOverwrite {
     while true; do
 	read -p "Do you want to owerwrite? [y/n] " yesno
 	case $yesno in
-	    y* | *Y )
+	    y* | Y* )
 		break
 		;;
 	    n* | N* | q )
