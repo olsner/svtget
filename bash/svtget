@@ -23,7 +23,13 @@
 # Sample usage:
 # ./svtget http://svtplay.se/v/2440756/k_special/presspauseplay
 
-DEPENDENCIES="rtmpdump curl sed cut bash"
+if [ `uname` == "Darwin" ]; then
+    SED=gsed
+else
+    SED=sed
+fi
+
+DEPENDENCIES="rtmpdump curl $SED cut bash"
 for DEP in $DEPENDENCIES; do
 	if [ -z "`which $DEP`" ]; then
 		echo "ERROR: Missing dependency '$DEP'." >&2
@@ -54,7 +60,7 @@ function get_tcUrls {
 	if [ $? -gt 0 ] || [ -z "$bitrate" ] || [ "$bitrate" -eq 0 ]; then
 		bitrate='[0-9]\+'
 	fi
-	echo $html | sed "s/\(rtmp[e]\?:[^|&]*\),bitrate:\($bitrate\)/\\n\2|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq 
+	echo $html | $SED "s/\(rtmp[e]\?:[^|&]*\),bitrate:\($bitrate\)/\\n\2|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq 
 }
 
 function pick_tcUrl {
@@ -82,6 +88,23 @@ function pick_tcUrl {
 	tcUrl=${Streams[$stream]}
 }
 
+function askOverwrite {
+    echo  "The file \"$1\" exists already!"
+    while true; do
+	read -p "Do you want to owerwrite? [y/n] " yesno
+	case $yesno in
+	    y* | Y* )
+		break
+		;;
+	    n* | N* | q )
+		exit 1
+		;;
+	    *)
+		;;
+	esac
+    done
+}
+
 while getopts "q:" opt; do
 	case $opt in
 	q)
@@ -105,8 +128,10 @@ if [[ ! "$pageUrl" =~ http://svtplay.se ]]; then
 	exit 1
 fi
 
+pageUrl=`echo $pageUrl | sed 's/^\([^?]*\).*/\1/'` 
+
 HTML=`curl -s "$pageUrl"`
-swfUrl="http://svtplay.se$(echo $HTML | sed 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
+swfUrl="http://svtplay.se$(echo $HTML | $SED 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
 tcUrls=$(get_tcUrls "$HTML" "$BITRATE")
 if [ -z "$tcUrls" ]; then
 	echo "ERROR: No rtmp streams found. No clip in that quality?
@@ -124,6 +149,9 @@ filename="$(basename $pageUrl).$extension"
 prefix="$(basename $(dirname $pageUrl))"
 if echo "$prefix" | grep -qE '[^0-9]+' ; then
   filename="${prefix}_${filename}"
+fi
+if [ -e "$filename" ]; then
+    askOverwrite $filename
 fi
 echo Running RTMPDump for "$tcUrl" and saving to "$filename"
 
