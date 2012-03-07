@@ -98,10 +98,27 @@ function pick_tcUrl {
 	tcUrl=${Streams[$stream]}
 }
 
-while getopts "q:" opt; do
+function print_help {
+	echo -e "Usage: $0 -q [l|m|n|h|320|850|1400|2400] -m [file|vlc] -s [y|n] http://svtplay.se/v/..."
+	echo -e " -q\tquality of the stream"
+	echo -e " -m\tmethod, save to file or play in vlc"
+	echo -e " -s\tsubtitle, yes or no"
+}
+
+while getopts "q:m:s:h" opt; do
 	case $opt in
 	q)
 		set_bitrate $OPTARG
+		;;
+	m)
+		method=$OPTARG
+		;;
+	s)
+		subtitle=$OPTARG
+		;;
+	h)
+		print_help
+		exit 0
 		;;
 	\?)
 		echo "invalid option: -$OPTARG" >&2
@@ -111,8 +128,8 @@ while getopts "q:" opt; do
 done
 
 pageUrl=${!#}
-if [ -z "$pageUrl" ]; then
-	echo "Usage: $0 [-q l|m|n|h] http://svtplay.se/v/..." >&2
+if [ -z "$pageUrl" ] || [ "$pageUrl" == $0 ]; then
+	print_help
 	exit 1
 fi
 
@@ -143,52 +160,53 @@ if echo "$prefix" | grep -qE '[^0-9]+' ; then
 	filename="${prefix}_${filename}"
 fi
 
-
-echo -ne "\nwant subtitle? [y/n] "
-read ask_sub
-if [ -n "$ask_sub" ] && [ "y" == "$ask_sub" ]; then
-	subUrl=$(get_sub "$HTML")
-	subtitle=true
-	sub_filename="$(basename $pageUrl).srt"
-else
-	subUrl=""
-	subtitle=false
+if [ -z $subtitle ]; then
+	echo -ne "\nwant subtitle? [y/n] "
+	read subtitle
 fi
 
-echo -ne "\nDo you want to view i vlc or save to file? [v/f] "
-read ask_vlc
-if [ -n "$ask_vlc" ] && [ "v" == "$ask_vlc" ]; then
-	method="vlc"
-elif [ -n "$ask_vlc" ] && [ "f" == "$ask_vlc" ]; then
-	method="file"
+if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
+	subUrl=$(get_sub "$HTML")
+	if [ -z "$subUrl" ]; then
+		echo "No subtitle found."
+		subtitle="n"
+	else
+		sub_filename="$(basename $pageUrl).srt"
+	fi
+else
+	subUrl=""
+	subtitle="n"
+fi
+
+if [ -z $method ]; then
+	echo -ne "\nDo you want to view i vlc or save to file? [v/f] "
+	read ask_vlc
+	if [ -n "$ask_vlc" ] && [ "v" == "$ask_vlc" ]; then
+		method="vlc"
+	elif [ -n "$ask_vlc" ] && [ "f" == "$ask_vlc" ]; then
+		method="file"
+	fi
 fi
 
 if [ $method == "file" ]; then
-	echo "file"
 	if [ $extension == "mp4" ]; then
-		echo "mp4"
-		echo "rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename""
+		#echo "rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename""
 		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
 	elif [ $extension == "flv" ]; then
-		echo "flv"
-		echo "wget "$tcUrl" -O "$filename""
+		#echo "wget "$tcUrl" -O "$filename""
 		wget "$tcUrl" -O "$filename"
 	fi
-	if [ $subtitle == true ]; then
-		echo "subtitle"
+	if [ $subtitle == "y" ]; then
 		subUrl=`echo "$subUrl" | sed 's/\-\-sub\-file //g'`
-		echo "wget "$subUrl" -O "$sub_filename""
+		#echo "wget "$subUrl" -O "$sub_filename""
 		wget "$subUrl" -O "$sub_filename"
 	fi
 elif [ $method == "vlc" ]; then
-	echo "vlc"
 	if [ $extension == "mp4" ]; then
-		echo "mp4"
-		echo "rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl"
-		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl
+		#echo "rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl"
+		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl &>/dev/null
 	elif [ $extension == "flv" ]; then
-		echo "flv"
-		echo "vlc "$tcUrl" "$subUrl""
-		vlc "$tcUrl" "$subUrl"
+		#echo "vlc "$tcUrl" "$subUrl""
+		vlc "$tcUrl" "$subUrl" &>/dev/null
 	fi
 fi
