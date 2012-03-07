@@ -139,7 +139,8 @@ if [[ ! "$pageUrl" =~ http://svtplay.se ]]; then
 fi
 
 HTML=`curl -s "$pageUrl"`
-swfUrl="http://svtplay.se$(echo $HTML | sed 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
+#swfUrl="http://svtplay.se$(echo $HTML | sed 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
+swfUrl="http://svtplay.se"`echo $HTML | sed 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/'`
 tcUrls=$(get_tcUrls "$HTML" "$BITRATE")
 if [ -z "$tcUrls" ]; then
 	echo "ERROR: No rtmp streams found. No clip in that quality?
@@ -173,18 +174,24 @@ if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
 	else
 		sub_filename="$(basename $pageUrl).srt"
 	fi
-else
+elif [ "n" == "$subtitle" ]; then
 	subUrl=""
 	subtitle="n"
+else
+	echo "argument \"-s $subtitle\" unknown"
+	exit 1
 fi
 
 if [ -z $method ]; then
 	echo -ne "\nDo you want to view i vlc or save to file? [v/f] "
-	read ask_vlc
-	if [ -n "$ask_vlc" ] && [ "v" == "$ask_vlc" ]; then
+	read ask_method
+	if [ -n "$ask_method" ] && [ "v" == "$ask_method" ]; then
 		method="vlc"
-	elif [ -n "$ask_vlc" ] && [ "f" == "$ask_vlc" ]; then
+	elif [ -n "$ask_method" ] && [ "f" == "$ask_method" ]; then
 		method="file"
+	else
+		echo "method "$ask_method" unknown"
+		exit 1
 	fi
 fi
 
@@ -209,4 +216,6 @@ elif [ $method == "vlc" ]; then
 		#echo "vlc "$tcUrl" "$subUrl""
 		vlc "$tcUrl" "$subUrl" &>/dev/null
 	fi
+else
+	echo "argument \"-m $method\" unknown"
 fi
