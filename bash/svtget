@@ -236,7 +236,6 @@ fi
 
 if [ $method == "file" ]; then
 	if [ $extension == "mp4" ]; then
-		echo "rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename""
 		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
 	elif [ $extension == "flv" ]; then
 		wget "$tcUrl" -O "$filename"
