@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SVTGet v0.1.1 (fork by DomeDan)
+# SVTGet v0.1.1
 # Updates can be found at http://svtget.se/
 # Support the project with Flattr: https://flattr.com/thing/300374/SVT-Get-a-local-cache-tool-for-SVT-Play
 #
@@ -236,6 +236,7 @@ fi
 
 if [ $method == "file" ]; then
 	if [ $extension == "mp4" ]; then
+		echo "rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename""
 		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
 	elif [ $extension == "flv" ]; then
 		wget "$tcUrl" -O "$filename"
