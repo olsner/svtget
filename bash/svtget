@@ -1,20 +1,26 @@
 #!/bin/bash
 
-# SVTGet v0.1.1
+# SVTGet v0.1.2
 # Updates can be found at http://svtget.se/
 # Support the project with Flattr: https://flattr.com/thing/300374/SVT-Get-a-local-cache-tool-for-SVT-Play
 #
 # Description: The script can download the RTMP streams available from the
 # online streaming service "SVT Play", managed by Sveriges Television
 #
-# Original author: Mikael "MMN-o" Nordfeldth
+# Original author: Mikael "MMN-o" Nordfeldth <mmn@hethane.se>
+# Additional authors: sikevux DomeDan
 # License: GPLv3
 # http://www.gnu.org/licenses/gpl-3.0.txt
 #
-# URL: http://blog.mmn-o.se/
-# Flattr: https://flattr.com/thing/188162/MMN-o-on-Flattr
+# URL: http://svtget.se/
+# Flattr: http://flattr.com/thing/300374/SVT-Get-a-local-cache-tool-for-SVT-Play
 
 # Changelog:
+# -- v0.1.2
+#    * deb package removed (...maintenance...)
+#    * DomeDan added Öppna Arkivet support
+#    * DomeDan added subtitle download support
+#    * script can now choose to play clips directly
 # -- v0.1.1
 #    * deb package created by sikevux, small fixes on other stuff
 # -- v0.1
@@ -29,7 +35,12 @@ else
     SED=sed
 fi
 
-DEPENDENCIES="rtmpdump curl $SED cut bash vlc wget"
+# actions
+play=0
+subtitles=0
+
+DEPENDENCIES="rtmpdump curl $SED cut bash"
+PLAYERS="mplayer vlc"
 for DEP in $DEPENDENCIES; do
 	if [ -z "`which $DEP`" ]; then
 		echo "ERROR: Missing dependency '$DEP'." >&2
@@ -106,7 +117,7 @@ function pick_tcUrl {
 function askOverwrite {
     echo  "The file \"$1\" exists already!"
     while true; do
-	read -p "Do you want to owerwrite? [y/n] " yesno
+	read -p "Do you want to overwrite? [y/n] " yesno
 	case $yesno in
 	    y* | Y* )
 		break
@@ -120,45 +131,23 @@ function askOverwrite {
     done
 }
 
-function askSubtitle {
-	read -p "Do you want subtitles? [y/n] " subtitle
-	if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
-		subtitle="y"
-	elif [ "n" == "$subtitle" ]; then
-		subtitle="n"
-	else
-		askSubtitle
-	fi
-}
-
-function askMethod {
-	read -p "Do you want to view i vlc or save to file? [v/f] " ask_method
-  if [ -n "$ask_method" ] && [ "v" == "$ask_method" ]; then
-    method="vlc"
-  elif [ -n "$ask_method" ] && [ "f" == "$ask_method" ]; then
-    method="file"
-  else
-		askMethod
-  fi
-}
-
 function print_help {
-	echo -e "Usage: $0 -q [l|m|n|h|320|850|1400|2400] -m [file|vlc] -s [y|n] http://svtplay.se/v/..."
+	echo -e "Usage: $0 -q [l|m|n|h|320|850|1400|2400] -m -s http://svtplay.se/v/..."
 	echo -e " -q\tquality of the stream"
-	echo -e " -m\tmethod, save to file or play in vlc"
-	echo -e " -s\tsubtitle, yes or no"
+	echo -e " -p\tplay output"
+	echo -e " -s\tfetch subtitles"
 }
 
-while getopts "q:m:s:h" opt; do
+while getopts "q:psh" opt; do
 	case $opt in
 	q)
 		set_bitrate $OPTARG
 		;;
-	m)
-		method=$OPTARG
+	p)
+		play=1
 		;;
 	s)
-		subtitle=$OPTARG
+		subtitles=1
 		;;
 	h)
 		print_help
@@ -206,11 +195,7 @@ if echo "$prefix" | grep -qE '[^0-9]+' ; then
 	filename="${prefix}_${filename}"
 fi
 
-if [ -z $subtitle ]; then
-	askSubtitle
-fi
-
-if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
+if [ "1" != "$play" ] && [ "1" == "$subtitle" ]; then
 	subUrl=$(get_sub "$HTML")
 	if [ -z "$subUrl" ]; then
 		echo "No subtitle found."
@@ -222,34 +207,38 @@ if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
 			sub_filename="${sub_prefix}_${sub_filename}"
 		fi
 	fi
-elif [ "n" == "$subtitle" ]; then
+else
 	subUrl=""
 fi
 
-if [ -z $method ]; then
-	askMethod
-fi
-
-if [ -e "$filename" ] && [ $method == 'file' ]; then
+if [ "1" != "$play" ] && [ -e "$filename" ]; then
     askOverwrite $filename
 fi
 
-if [ $method == "file" ]; then
-	if [ $extension == "mp4" ]; then
+if [ "1" != "$play" ]; then
+	if [ "1" == "$subtitles" ]; then
+		subUrl=`echo "$subUrl" | $SED 's/\-\-sub\-file //g'`
+		curl "$subUrl" -o "$sub_filename"
+	fi
+	if [ "$extension" == "mp4" ]; then
 		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
 	elif [ $extension == "flv" ]; then
-		wget "$tcUrl" -O "$filename"
-	fi
-	if [ $subtitle == "y" ]; then
-		subUrl=`echo "$subUrl" | $SED 's/\-\-sub\-file //g'`
-		wget "$subUrl" -O "$sub_filename"
-	fi
-elif [ $method == "vlc" ]; then
-	if [ $extension == "mp4" ]; then
-		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl &>/dev/null
-	elif [ $extension == "flv" ]; then
-		vlc "$tcUrl" "$subUrl" &>/dev/null
+		curl "$tcUrl" -o "$filename"
 	fi
 else
-	echo "argument \"-m $method\" unknown (should be \"file\" or \"vlc\")"
+	for i in $PLAYERS; do
+		mediaplayer=`which "$i"`
+		if [ -n "$mediaplayer" ]; then
+			break;
+		fi
+	done
+	if [ -z "$mediaplayer" ]; then
+		echo "No media player found (tried: $PLAYERS)"
+	fi
+	
+	if [ $extension == "mp4" ]; then
+		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | $mediaplayer - "$subUrl" &>/dev/null
+	elif [ $extension == "flv" ]; then
+		$mediaplayer "$tcUrl" "$subUrl" &>/dev/null
+	fi
 fi
