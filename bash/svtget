@@ -29,7 +29,7 @@ else
     SED=sed
 fi
 
-DEPENDENCIES="rtmpdump curl $SED cut bash"
+DEPENDENCIES="rtmpdump curl $SED cut bash vlc wget"
 for DEP in $DEPENDENCIES; do
 	if [ -z "`which $DEP`" ]; then
 		echo "ERROR: Missing dependency '$DEP'." >&2
@@ -60,7 +60,22 @@ function get_tcUrls {
 	if [ $? -gt 0 ] || [ -z "$bitrate" ] || [ "$bitrate" -eq 0 ]; then
 		bitrate='[0-9]\+'
 	fi
-	echo $html | $SED "s/\(rtmp[e]\?:[^|&]*\),bitrate:\($bitrate\)/\\n\2|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq 
+	#normal clip
+	tcUrls=`echo $html | $SED "s/\(rtmp[e]\?:[^|&]*\),bitrate:\($bitrate\)/\\n\2|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq`
+	if [ -z "$tcUrls" ]; then
+	 	#from öppet arkiv
+		tcUrls=`echo $html | $SED "s/\(rtmp[e]\?:[^|&]*\)&amp;/\\n320|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq`
+	fi
+	if [ -z "$tcUrls" ]; then
+		#flv-files
+		tcUrls=`echo $html | $SED "s/\(http\?:[^|&]*\.flv\)&amp;/\\n320|\1\\n/g" | grep -E '^[[:digit:]]+\|' | sort -n | uniq`
+	fi
+	echo $tcUrls
+}
+
+function get_sub {
+	local html=$1
+	echo $html | $SED "s/subtitle\=\(http:[^|&]*\)\&amp/\\n\-\-sub\-file \1\\n/g"| grep "\-\-sub\-file " | uniq
 }
 
 function pick_tcUrl {
@@ -105,10 +120,49 @@ function askOverwrite {
     done
 }
 
-while getopts "q:" opt; do
+function askSubtitle {
+	read -p "Do you want subtitles? [y/n] " subtitle
+	if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
+		subtitle="y"
+	elif [ "n" == "$subtitle" ]; then
+		subtitle="n"
+	else
+		askSubtitle
+	fi
+}
+
+function askMethod {
+	read -p "Do you want to view i vlc or save to file? [v/f] " ask_method
+  if [ -n "$ask_method" ] && [ "v" == "$ask_method" ]; then
+    method="vlc"
+  elif [ -n "$ask_method" ] && [ "f" == "$ask_method" ]; then
+    method="file"
+  else
+		askMethod
+  fi
+}
+
+function print_help {
+	echo -e "Usage: $0 -q [l|m|n|h|320|850|1400|2400] -m [file|vlc] -s [y|n] http://svtplay.se/v/..."
+	echo -e " -q\tquality of the stream"
+	echo -e " -m\tmethod, save to file or play in vlc"
+	echo -e " -s\tsubtitle, yes or no"
+}
+
+while getopts "q:m:s:h" opt; do
 	case $opt in
 	q)
 		set_bitrate $OPTARG
+		;;
+	m)
+		method=$OPTARG
+		;;
+	s)
+		subtitle=$OPTARG
+		;;
+	h)
+		print_help
+		exit 0
 		;;
 	\?)
 		echo "invalid option: -$OPTARG" >&2
@@ -118,8 +172,8 @@ while getopts "q:" opt; do
 done
 
 pageUrl=${!#}
-if [ -z "$pageUrl" ]; then
-	echo "Usage: $0 [-q l|m|n|h] http://svtplay.se/v/..." >&2
+if [ -z "$pageUrl" ] || [ "$pageUrl" == $0 ]; then
+	print_help
 	exit 1
 fi
 
@@ -128,10 +182,10 @@ if [[ ! "$pageUrl" =~ http://svtplay.se ]]; then
 	exit 1
 fi
 
-pageUrl=`echo $pageUrl | sed 's/^\([^?]*\).*/\1/'` 
+pageUrl=`echo $pageUrl | $SED 's/^\([^?]*\).*/\1/'` 
 
 HTML=`curl -s "$pageUrl"`
-swfUrl="http://svtplay.se$(echo $HTML | $SED 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/')"
+swfUrl="http://svtplay.se"`echo $HTML | $SED 's/.*x-shockwave-flash" data="\([^"]\+\)\".*/\1/'`
 tcUrls=$(get_tcUrls "$HTML" "$BITRATE")
 if [ -z "$tcUrls" ]; then
 	echo "ERROR: No rtmp streams found. No clip in that quality?
@@ -141,18 +195,61 @@ fi
 
 pick_tcUrl $tcUrls
 
-extension="mp4"
-if [ "$extension" != "${tcUrl##*.}" ]; then
+if [ "${tcUrl##*.}" == "flv" ]; then
 	extension="flv"
+else
+	extension="mp4"
 fi
 filename="$(basename $pageUrl).$extension"
 prefix="$(basename $(dirname $pageUrl))"
 if echo "$prefix" | grep -qE '[^0-9]+' ; then
-  filename="${prefix}_${filename}"
+	filename="${prefix}_${filename}"
 fi
-if [ -e "$filename" ]; then
+
+if [ -z $subtitle ]; then
+	askSubtitle
+fi
+
+if [ -n "$subtitle" ] && [ "y" == "$subtitle" ]; then
+	subUrl=$(get_sub "$HTML")
+	if [ -z "$subUrl" ]; then
+		echo "No subtitle found."
+		subtitle="n"
+	else
+		sub_filename="$(basename $pageUrl).srt"
+		sub_prefix="$(basename $(dirname $pageUrl))"
+		if echo "$sub_prefix" | grep -qE '[^0-9]+' ; then
+			sub_filename="${sub_prefix}_${sub_filename}"
+		fi
+	fi
+elif [ "n" == "$subtitle" ]; then
+	subUrl=""
+fi
+
+if [ -z $method ]; then
+	askMethod
+fi
+
+if [ -e "$filename" ] && [ $method == 'file' ]; then
     askOverwrite $filename
 fi
-echo Running RTMPDump for "$tcUrl" and saving to "$filename"
 
-rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
+if [ $method == "file" ]; then
+	if [ $extension == "mp4" ]; then
+		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o "$filename"
+	elif [ $extension == "flv" ]; then
+		wget "$tcUrl" -O "$filename"
+	fi
+	if [ $subtitle == "y" ]; then
+		subUrl=`echo "$subUrl" | $SED 's/\-\-sub\-file //g'`
+		wget "$subUrl" -O "$sub_filename"
+	fi
+elif [ $method == "vlc" ]; then
+	if [ $extension == "mp4" ]; then
+		rtmpdump -r "$tcUrl" --swfVfy="$swfUrl" -o - | vlc - $subUrl &>/dev/null
+	elif [ $extension == "flv" ]; then
+		vlc "$tcUrl" "$subUrl" &>/dev/null
+	fi
+else
+	echo "argument \"-m $method\" unknown (should be \"file\" or \"vlc\")"
+fi
