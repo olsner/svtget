@@ -45,7 +45,7 @@ svtplayUrl = "http://www.svtplay.se"
 # Available bitrates at svtplay
 bitrates = { 'l' => 340, 'm' => 850, 'n' => 1400, 'h' => 2400}
 
-@options = { :bitrate => 0, :silent => false, :subtitles => false, :debug => false, :app => 'rtmpdump', :xargs => '' }
+@options = { :bitrate => 0, :silent => false, :subtitles => false, :debug => false, :app => 'rtmpdump', :xargs => '',  :extension => '' }
 
 # Options
 optparse = OptionParser.new do |opts|
@@ -56,10 +56,16 @@ optparse = OptionParser.new do |opts|
   opts.on("-p", "--play", "Plays the stream with ffplay") do
     @options[:app] = 'ffplay'
   end
-    opts.on("-s", "--subtitles", "Fetch subtitles") do
+  opts.on("-s", "--subtitles", "Fetch subtitles") do
     @options[:subtitles] = true
   end
-    opts.on("-x", '--xargs "ARGS..."', "Args to pass on to the launched application") do |args|
+  opts.on("-t", "--transcode", "Transcod with ffmpeg, use -x pass args to ffmpeg") do
+    @options[:app] = 'ffmpeg'
+  end
+  opts.on("-e", "--extension extension", "Extension for transcod output") do |e|
+    @options[:extension] = e
+  end
+  opts.on("-x", '--xargs "ARGS..."', "Args to pass on to the launched application") do |args|
     @options[:xargs] = args
   end
   opts.on("--silent", "Don't output any information") do
@@ -109,14 +115,18 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
   flashData = JSON.parse( jsonValueStr.sub( /^json=/, "" ) )
   subtitlesList = flashData["video"]["subtitleReferences"]
   allStreams = flashData["video"]["videoReferences"]
-  streams = allStreams.select{|stream| stream["playerType"] == "flash"}
+  if ! (@options[:app] == 'ffplay' || @options[:app] == 'ffmpeg')
+    streams = allStreams.select{|stream| stream["playerType"] == "flash"}
+  else
+    streams = allStreams
+  end
   streams.sort!{|a,b| a["bitrate"] <=> b["bitrate"] }
 
   def getStreamIndex( streams )
-    puts "#  Bitrate\t\tStream name"
+    puts "%2s  %-8s\t%-60s%s" % [ '#', 'Bitrate', 'Stream Name', 'Type' ]
     count = 1
     streams.each{|stream|
-		puts "#{count}. #{stream["bitrate"]} kbps\t\t#{stream["url"].sub( /^.*\//,"")}"
+                puts "%2d.%10s\t%-60s%s" % [ count, "#{stream["bitrate"]} kbps", stream["url"].sub( /^.*\//,""), stream["playerType"] ]
 		count += 1 }
     print "\nWhich file do you want? [#] "
     Integer( gets ) -1
@@ -132,8 +142,21 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
     index = getStreamIndex streams
   end
   
-  url = streams[index]["url"]
-  extension = url[/\.[^\.]+$/] 
+  case streams[index]["playerType"]
+  when 'ios'
+    url = streams[index]["url"].sub( %r{^[^:]+://},"applehttp://")
+  when 'wmv'
+    url = streams[index]["url"].sub( %r{^[^:]+://},"mmsh://")
+  else
+    url = streams[index]["url"]
+  end
+  
+  if @options[:extension].empty?
+     extension = url[/\.[^\.]+$/]   
+  else
+    extension = '.' + @options[:extension]
+  end
+  
   baseFileName = "#{program} #{episod}".strip.tr(' ', '_')
   subtitlesUrl = subtitlesList.first['url'] unless subtitlesList.first.nil?
   
@@ -147,10 +170,10 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
   end
   
   def verifyFileName( fileName )
-    postfix = fileName[/\.[^\.]+$/]
-    newFileName = fileName.sub(/\.[^\.]+$/,"") + "_new" + postfix
-    if ! @options[:silent]
-      if FileTest.file? fileName
+    if FileTest.file? fileName
+      postfix = fileName[/\.[^\.]+$/]
+      newFileName = fileName.sub(/\.[^\.]+$/,"") + "_new" + postfix
+      if ! @options[:silent]
 	puts "The file #{fileName} exists already!"
 	print "Do you want to overwrite? [y/N] "
 	overwrite = gets.chomp
@@ -162,6 +185,8 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
 	  newFileName = fileName
         end
       end
+    else
+      newFileName = fileName
     end
     return newFileName
   end
@@ -178,13 +203,31 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
   case @options[:app]
   when 'rtmpdump'
     outFileName = verifyFileName "#{baseFileName}#{extension}"
-    if url =~ /^http[s]?:\/\//
+    if url =~ %r{^http[s]?://}
       cmd = "curl #{url} -o #{outFileName} #{@options[:xargs]}"
     else
       cmd = "rtmpdump -r #{url} -W #{player} -o #{outFileName} #{@options[:xargs]}"
     end
   when 'ffplay'
-    cmd = "ffplay #{@options[:xargs]} '#{url} swfUrl=#{player}'"
+    cmd = "ffplay #{@options[:xargs]}"
+    if url =~ %r{^rtmp([est]|te)?://}
+      cmd += " '#{url} swfUrl=#{player}'"
+    else
+      cmd += " #{url}"
+    end
+  when 'ffmpeg'
+    outFileName = verifyFileName "#{baseFileName}#{extension}"
+    if @options[:xargs].empty?
+       xargs = '-acodec copy -vcodec copy'     
+    else
+      xargs = @options[:xargs]
+    end
+    if url =~ %r{^rtmp([est]|te)?://}
+      input = "'#{url} swfUrl=#{player}'"
+    else
+      input = url
+    end
+    cmd = "ffmpeg -i #{input} #{xargs} #{outFileName}" 
   end
 
   execCmd cmd
