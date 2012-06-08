@@ -7,7 +7,7 @@
 # Description: The script can download the RTMP streams available from the
 # online streaming service "SVT Play", managed by Sveriges Television
 #
-# Original author: Erik Modén
+# Original author: Erik ModÃ©n
 # License: GPLv3
 # http://www.gnu.org/licenses/gpl-3.0.txt
 #
@@ -184,7 +184,7 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
       cmd = "rtmpdump -r #{url} -W #{player} -o #{outFileName} #{@options[:xargs]}"
     end
   when 'ffplay'
-    cmd = "ffplay #{@options[:xargs]} #{url}"
+    cmd = "ffplay #{@options[:xargs]} '#{url} swfUrl=#{player}'"
   end
 
   execCmd cmd
