@@ -207,7 +207,7 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
   when 'ffplay'
     cmd = "ffplay #{@options[:xargs]}"
     if url =~ %r{^rtmp([est]|te)?://}
-      cmd += " '#{url} swfUrl=#{player}'"
+      cmd += " '#{url} swfUrl=#{player} swfVfy=1'"
     else
       cmd += " #{url}"
     end
@@ -219,7 +219,7 @@ if !ARGV[0].nil? && ARGV[0].match(/#{svtplayUrl}/)
       xargs = @options[:xargs]
     end
     if url =~ %r{^rtmp([est]|te)?://}
-      input = "'#{url} swfUrl=#{player}'"
+      input = "'#{url} swfUrl=#{player} swfVfy=1'"
     else
       input = url
     end
