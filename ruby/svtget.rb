@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# SVTGet v0.6.2 in ruby
+# SVTGet v0.7.0 in ruby
 # Updates can be found at https://github.com/mmn/svtplay
 # Support the project with Flattr: https://flattr.com/thing/300374/SVT-Get-a-local-cache-tool-for-SVT-Play
 
@@ -24,21 +24,17 @@ require 'hpricot'
 require 'json'
 
 
-def checkIfIntalled( prog )
-  if !system("which #{prog} > /dev/null 2>&1")
-    puts "#{File.basename(__FILE__)} is depending on #{prog}, please install it and #{File.basename(__FILE__)} will start working."
+def checkIfIntalled( progs )
+  missing = progs.select{|prog| !system("which #{prog} > /dev/null 2>&1") }
+  if ! missing.empty?
+    missing.each{|prog| puts "#{File.basename(__FILE__)} is depending on #{prog}, please install it and #{File.basename(__FILE__)} will start working." }
     exit 1
   end
 end
 
-# Check if rtmpdump is installed
-checkIfIntalled 'rtmpdump'
+dependencies = [ 'rtmpdump', 'curl', 'ffmpeg', 'ffplay' ]
 
-# Check if ffplay is installed
-checkIfIntalled 'ffplay'
-
-# Check if curl is installed
-checkIfIntalled 'curl'
+checkIfIntalled dependencies
 
 svtplayUrl = "http://www.svtplay.se"
 
