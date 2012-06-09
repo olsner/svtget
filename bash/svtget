@@ -193,16 +193,12 @@ fi
 
 pick_tcUrl $tcUrls
 
-if [ "${tcUrl##*.}" == "flv" ]; then
-	extension="flv"
-else
-	extension="mp4"
-fi
-filename="$(basename $pageUrl).$extension"
-prefix="$(basename $(dirname $pageUrl))"
-if echo "$prefix" | grep -qE '[^0-9]+' ; then
-	filename="${prefix}_${filename}"
-fi
+extension="${tcUrl##*.}"
+programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).hela-program".*}/\1/p' | tr '-' '_')"
+# Using sed in last substitution since tr do not include åäö in [:alnum:]
+episodName="$(echo $JSON | $SED -n 's/.*"context":{"title":"\([^"]\+\)".*/\1/p' | tr '[:blank:]' '_' | tr '/' '-' | $SED  's/[^[:alnum:]_-]/./g' | $SED 's/\.\+$//')"
+
+filename="${programName}_${episodName}.${extension}"
 
 if [ "1" != "$play" ] && [ "1" == "$subtitles" ]; then
 	subUrl=$(get_sub "$JSON")
@@ -210,11 +206,7 @@ if [ "1" != "$play" ] && [ "1" == "$subtitles" ]; then
 		echo "No subtitle found."
 		subtitles="n"
 	else
-		sub_filename="$(basename $pageUrl).srt"
-		sub_prefix="$(basename $(dirname $pageUrl))"
-		if echo "$sub_prefix" | grep -qE '[^0-9]+' ; then
-			sub_filename="${sub_prefix}_${sub_filename}"
-		fi
+		sub_filename="${programName}_${episodName}.srt"
 	fi
 else
 	subUrl=""
