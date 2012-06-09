@@ -194,11 +194,10 @@ fi
 pick_tcUrl $tcUrls
 
 extension="${tcUrl##*.}"
-programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).hela-program".*}/\1/p' | tr '-' '_')"
-# Using sed in last substitution since tr do not include åäö in [:alnum:]
-episodName="$(echo $JSON | $SED -n 's/.*"context":{"title":"\([^"]\+\)".*/\1/p' | tr '[:blank:]' '_' | tr '/' '-' | $SED  's/[^[:alnum:]_-]/./g' | $SED 's/\.\+$//')"
+programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).hela-program".*}/\1/p')"
+episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//')"
 
-filename="${programName}_${episodName}.${extension}"
+filename="${programName}-${episodName}.${extension}"
 
 if [ "1" != "$play" ] && [ "1" == "$subtitles" ]; then
 	subUrl=$(get_sub "$JSON")
@@ -206,7 +205,7 @@ if [ "1" != "$play" ] && [ "1" == "$subtitles" ]; then
 		echo "No subtitle found."
 		subtitles="n"
 	else
-		sub_filename="${programName}_${episodName}.srt"
+		sub_filename="${programName}-${episodName}.srt"
 	fi
 else
 	subUrl=""
