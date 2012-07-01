@@ -16,7 +16,7 @@
 # Flattr: http://flattr.com/thing/300374/SVT-Get-a-local-cache-tool-for-SVT-Play
 
 # Changelog:
-# -- v0.1.3
+# -- v0.1.4
 #    * Erik Modén Changed filename to use folderStructure and title from json data.
 # -- v0.1.3
 #    * Erik Modén updated script to work with the new svtplay that was launched 2012-06-04
