@@ -167,7 +167,7 @@ function pick_tcUrl {
 		local BITRATE=`echo $STREAM | cut -d '|' -f 1 -`
 		local RESOLUTION=`echo $STREAM | cut -d '|' -f 2 -`
 		Streams[$n]=`echo $STREAM | cut -d '|' -f 3 -`
-		local NAME=`basename $STREAM | cut -d '?' -f 1 -`
+		local NAME=`basename -- $STREAM | cut -d '?' -f 1 -`
 		print_alligned "$n." "${BITRATE} kbps" "${RESOLUTION}" "$NAME"
 		let n++
 	done
