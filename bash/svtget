@@ -354,7 +354,7 @@ else # if [ ! $play ]
     if [ $is_applehttp ]; then
         # in case of any problem with segmentation fault. make sure you have latest possibe ffmpeg. on Mac build ffmpeg from source.
         # bug ticket: http://ffmpeg.org/trac/ffmpeg/ticket/749
-	CMD="ffmpeg -i \"$tcUrl\" $ffmpeg_flags \"$filename\""
+	CMD="ffmpeg -i \"$tcUrl\" $ffmpeg_flags \"file:$filename\""
     elif [ "$extension" == "mp4" ]; then
 	CMD="rtmpdump -r \"$tcUrl\" -W \"$swfUrl\" -o \"$filename\""
     elif [ $extension == "flv" ]; then
