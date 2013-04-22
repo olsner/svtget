@@ -40,6 +40,7 @@ else
 fi
 
 svtplay_url="http://www.svtplay.se"
+oppetarkiv_url="http://www.oppetarkiv.se"
 
 # actions
 play=""
@@ -209,7 +210,7 @@ function print_help {
 	echo -e " -p\tplay output"
 	echo -e " -s\tfetch subtitles"
 	echo -e " -f\tffmpeg flags"
-	echo -e " -d\Debug, print debug messages and cmd line"
+	echo -e " -d\tDebug, print debug messages and cmd line"
 }
 
 
@@ -269,8 +270,8 @@ if [ -z "$pageUrl" ] || [ "$pageUrl" == $0 ]; then
 	exit 1
 fi
 
-if [[ ! "$pageUrl" =~ $svtplay_url ]]; then
-	echo "Bad URL. Not SVT Play?" >&2
+if [[ ! "$pageUrl" =~ $svtplay_url ]] && [[ ! "$pageUrl" =~ $oppetarkiv_url ]]; then
+	echo "Bad URL. Not SVT Play or Öppet arkiv?" >&2
 	exit 1
 fi
 
@@ -312,10 +313,17 @@ else
 fi
 debug "picked tcUrl:\n$tcUrl"
 
-programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).[^"]\+".*}/\1/p')"
-episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//')"
-filename="${programName}-${episodName}.${extension}"
-debug "filename:\n$filename"
+if [[ "$pageUrl" =~ $oppetarkiv_url ]]; then
+	programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^"]\+\).[^"]\+".*}/\1/p')"
+	episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//')"
+	filename="${programName}-${episodName}.${extension}"
+	debug "filename:\n$filename"
+else
+	programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).[^"]\+".*}/\1/p')"
+	episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//')"
+	filename="${programName}-${episodName}.${extension}"
+	debug "filename:\n$filename"
+fi
 
 if [ ! $play ] && [ $subtitles ]; then
 	subUrl=$(get_sub "$JSON")
