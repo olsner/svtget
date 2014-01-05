@@ -313,17 +313,10 @@ else
 fi
 debug "picked tcUrl:\n$tcUrl"
 
-if [[ "$pageUrl" =~ $oppetarkiv_url ]]; then
-	programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^"]\+\).[^"]\+".*}/\1/p')"
-	episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//')"
-	filename="${programName}-${episodName}.${extension}"
-	debug "filename:\n$filename"
-else
-	programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).[^"]\+".*}/\1/p')"
-	episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//')"
-	filename="${programName}-${episodName}.${extension}"
-	debug "filename:\n$filename"
-fi
+programName="$(echo $JSON | $SED -n 's/.*"folderStructure":"\([^\.]\+\).[^"]\+".*}/\1/p' | tr : _)"
+episodName="$(echo $JSON | $SED -n 's/.*,"title":"\([^"]\+\)".*/\1/p' | $SED 's/-\+$//' | tr : _)"
+filename="${programName}-${episodName}.${extension}"
+debug "filename:\n$filename"
 
 if [ ! $play ] && [ $subtitles ]; then
 	subUrl=$(get_sub "$JSON")
